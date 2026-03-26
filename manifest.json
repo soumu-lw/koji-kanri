@@ -1,0 +1,26 @@
+{
+  "name": "KOJI-KANRI 工事書類管理",
+  "short_name": "KOJI-KANRI",
+  "description": "工事書類管理システム",
+  "start_url": "/koji-kanri/",
+  "scope": "/koji-kanri/",
+  "display": "standalone",
+  "background_color": "#0d0f1a",
+  "theme_color": "#0d0f1a",
+  "orientation": "portrait-primary",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
