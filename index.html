@@ -307,6 +307,18 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
             <div class="upload-icon">📄</div>
             <div class="upload-text"><strong>クリックして選択</strong>またはドロップ<br><span style="font-size:11px">JPEG・PNG・PDF対応 ／ 複数選択可</span></div>
           </div>
+          <!-- カメラ撮影ボタン（スマホ用） -->
+          <button class="btn btn-outline" onclick="openCamera()" style="width:100%;margin-top:10px;justify-content:center;gap:10px;padding:11px">
+            📷 カメラで撮影する
+          </button>
+          <!-- カメラプレビュー -->
+          <div id="camera-wrap" style="display:none;margin-top:10px;flex-direction:column;gap:8px">
+            <video id="camera-video" autoplay playsinline style="width:100%;border-radius:8px;border:1px solid var(--border);background:#000;max-height:320px;object-fit:cover"></video>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" onclick="capturePhoto()" style="flex:1;justify-content:center">📸 撮影する</button>
+              <button class="btn btn-outline" onclick="closeCamera()" style="flex:1;justify-content:center">✕ キャンセル</button>
+            </div>
+          </div>
           <div class="file-list" id="file-list" style="display:none"></div>
           <div class="preview-img" id="preview-img-wrap" style="margin-top:10px;display:none"></div>
           <div id="ai-status-wrap"></div>
@@ -923,6 +935,50 @@ function getSiteRows(prefix){
   }));
 }
 
+// ── Camera ──
+let cameraStream = null;
+
+async function openCamera(){
+  const wrap = document.getElementById('camera-wrap');
+  const video = document.getElementById('camera-video');
+  try{
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1920}, height:{ideal:1080} },
+      audio: false
+    });
+    video.srcObject = cameraStream;
+    wrap.style.display = 'flex';
+  } catch(e){
+    toast('カメラにアクセスできませんでした','#ef4444');
+    console.error(e);
+  }
+}
+
+function capturePhoto(){
+  const video = document.getElementById('camera-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  canvas.toBlob(blob => {
+    const now = new Date();
+    const name = `photo_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}.jpg`;
+    const file = new File([blob], name, {type:'image/jpeg'});
+    closeCamera();
+    handleFiles([file]);
+    toast('📸 撮影しました！');
+  }, 'image/jpeg', 0.92);
+}
+
+function closeCamera(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  document.getElementById('camera-wrap').style.display = 'none';
+  document.getElementById('camera-video').srcObject = null;
+}
+
 // ── File / AI ──
 async function handleFiles(fileList){
   if(!fileList||!fileList.length)return;
@@ -1057,6 +1113,7 @@ async function saveManual(){
   hideLoading();toast('✅ 登録しました！');clearManual();
 }
 function clearAll(){
+  closeCamera();
   currentFiles=[];activeFileIdx=0;currentDataURL=null;document.getElementById('file-input').value='';
   document.getElementById('file-list').style.display='none';document.getElementById('file-list').innerHTML='';
   document.getElementById('preview-img-wrap').style.display='none';document.getElementById('ai-btn').disabled=true;document.getElementById('ai-status-wrap').innerHTML='';
@@ -1699,7 +1756,7 @@ function closeProjModal(e){
 function toast(msg,bg='#10b981'){const el=document.getElementById('toast');el.textContent=msg;el.style.background=bg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800)}
 
 // ── Init ──
-const PW_HASH = '77c7086cf7f737e3770be4726a636a059b1cdd2d781eaf87b7bfd83f070fdcde';
+const PW_HASH = '8c93cd35d2c753657eb0a18984001dba9f3c0409dcac98a381290d9e1ed151f4';
 const SESSION_KEY = 'koji_auth';
 
 async function sha256(str){
