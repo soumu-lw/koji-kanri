@@ -614,19 +614,20 @@ const SB_URL = 'https://jjdszyvikwhnyaslpdyr.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqZHN6eXZpa3dobnlhc2xwZHlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4MDYwMTEsImV4cCI6MjA4OTM4MjAxMX0.K0fiZe1d9oc_PCCgA1dsfRlx-1zGNeR_8kkcdDvaScU';
 
 async function sbFetch(path, opts={}){
+  const headers = {
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer '+SB_KEY,
+    'Content-Type': 'application/json',
+    ...(opts.headers||{})
+  };
   const res = await fetch(SB_URL+'/rest/v1/'+path, {
-    ...opts,
-    headers:{
-      'apikey': SB_KEY,
-      'Authorization': 'Bearer '+SB_KEY,
-      'Content-Type': 'application/json',
-      'Prefer': opts.prefer||'',
-      ...opts.headers
-    }
+    method: opts.method||'GET',
+    headers,
+    body: opts.body||undefined
   });
   if(!res.ok){
     const e = await res.text();
-    throw new Error('Supabase error: '+e);
+    throw new Error('Supabase error '+res.status+': '+e);
   }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
@@ -634,15 +635,13 @@ async function sbFetch(path, opts={}){
 
 // records CRUD
 async function dbAdd(o){
-  // image_data_list は配列→JSONとして送る
   const row = recToRow(o);
   const rows = await sbFetch('records?select=id', {
     method:'POST',
-    prefer:'return=representation',
     headers:{'Prefer':'return=representation'},
     body: JSON.stringify(row)
   });
-  return rows[0].id;
+  return rows[0]?.id;
 }
 
 async function dbGetAll(){
@@ -1101,16 +1100,28 @@ async function saveRecord(){
   const sites=getSiteRows('');
   if(!sites.some(s=>s.customer||s.property)){toast('顧客名または物件名を入力してください','#ef4444');return}
   showLoading('登録中...');
+  try{
   const imageDataList=currentFiles.map(f=>f.dataURL).filter(Boolean);
   await dbAdd({savedAt:new Date().toISOString(),type:document.getElementById('f-type').value,docdate:document.getElementById('f-docdate').value,issuer:document.getElementById('f-issuer').value.trim(),note:document.getElementById('f-note').value.trim(),fileName:currentFiles.map(f=>f.name).join(', '),imageData:imageDataList[0]||null,imageDataList,sites});
-  hideLoading();toast('✅ 登録しました！');clearAll();
+    hideLoading();toast('✅ 登録しました！');clearAll();
+  }catch(e){
+    hideLoading();
+    console.error(e);
+    toast('❌ 登録に失敗しました。通信状態を確認してください。','#ef4444');
+  }
 }
 async function saveManual(){
   const sites=getSiteRows('m');
   if(!sites.some(s=>s.customer||s.property)){toast('顧客名または物件名を入力してください','#ef4444');return}
   showLoading('登録中...');
+  try{
   await dbAdd({savedAt:new Date().toISOString(),type:document.getElementById('m-type').value,docdate:document.getElementById('m-docdate').value,issuer:document.getElementById('m-issuer').value.trim(),note:document.getElementById('m-note').value.trim(),fileName:'',imageData:null,sites});
-  hideLoading();toast('✅ 登録しました！');clearManual();
+    hideLoading();toast('✅ 登録しました！');clearManual();
+  }catch(e){
+    hideLoading();
+    console.error(e);
+    toast('❌ 登録に失敗しました。通信状態を確認してください。','#ef4444');
+  }
 }
 function clearAll(){
   closeCamera();
