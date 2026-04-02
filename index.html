@@ -434,7 +434,7 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
 
 <!-- ══ 原価集計ページ ══ -->
 <div class="page" id="page-cost">
-  <div class="cost-top" id="cost-stats"></div>
+  <div id="cost-stats" style="display:none"></div>
   <div class="card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <input type="text" id="cost-search" placeholder="🔍　物件名・工事番号・顧客名で絞り込み..." oninput="renderCost()" style="flex:1;min-width:200px">
@@ -1347,20 +1347,6 @@ function renderCost(){
   if(q)rows=rows.filter(g=>[g.key,...g.customers,...g.jobnos,...g.properties].join(' ').toLowerCase().includes(q));
 
   const grand=rows.reduce((s,g)=>s+g.total,0);
-  const grandContract=rows.reduce((s,g)=>{const p=projMap[g.key];return s+(p&&p.contract?p.contract:0)},0);
-  const grandProfit=grandContract-grand;
-
-  // stats cards
-  const grandMatCost=rows.reduce((s,g)=>s+g.materialCost,0);
-  const grandSubCost=rows.reduce((s,g)=>s+g.subCost,0);
-  document.getElementById('cost-stats').innerHTML=`
-    <div class="stat-card"><div class="stat-num">${rows.length}</div><div class="stat-label">工事件数</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--info)">${grandContract?'¥'+grandContract.toLocaleString():'―'}</div><div class="stat-label">請負金額合計</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px">¥${grand.toLocaleString()}</div><div class="stat-label">原価合計</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--success)">¥${grandMatCost.toLocaleString()}</div><div class="stat-label">材料費合計</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px;color:var(--info)">¥${grandSubCost.toLocaleString()}</div><div class="stat-label">外注費合計</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px;color:${grandProfit>=0?'var(--success)':'var(--danger)'}">${grandContract?'¥'+grandProfit.toLocaleString():'―'}</div><div class="stat-label">粗利益合計</div></div>
-    <div class="stat-card"><div class="stat-num" style="font-size:14px;color:${grandProfit>=0?'var(--success)':'var(--danger)'}">${grandContract?Math.round(grandProfit/grandContract*100)+'%':'―'}</div><div class="stat-label">平均粗利率</div></div>`;
 
   if(!rows.length){
     document.getElementById('cost-tbody').innerHTML=`<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3)">データがありません</td></tr>`;
@@ -1413,20 +1399,7 @@ function renderCost(){
     </tr>`;
   }).join('');
 
-  const totalContract=rows.reduce((s,g)=>{const p=projMap[g.key];return s+(p&&p.contract||0)},0);
-  const totalProfit=totalContract-grand;
-  const totalMatCost=rows.reduce((s,g)=>s+g.materialCost,0);
-  const totalSubCost=rows.reduce((s,g)=>s+g.subCost,0);
-  document.getElementById('cost-tfoot').innerHTML=`
-    <tr class="total-row">
-      <td colspan="6">合計（${rows.length}件）</td>
-      <td class="num">${totalContract?'¥'+totalContract.toLocaleString():'―'}</td>
-      <td class="num">¥${grand.toLocaleString()}</td>
-      <td class="num" style="${totalProfit>=0?'color:var(--success)':'color:var(--danger)'}">${totalContract?'¥'+totalProfit.toLocaleString():'―'}</td>
-      <td class="num" style="color:var(--success)">¥${totalMatCost.toLocaleString()}</td>
-      <td class="num" style="color:var(--info)">¥${totalSubCost.toLocaleString()}</td>
-      <td colspan="4"></td>
-    </tr>`;
+  document.getElementById('cost-tfoot').innerHTML='';
 }
 
 // ── Cost Drilldown ──
