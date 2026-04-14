@@ -170,6 +170,13 @@ select option{background:var(--surface2)}
 .paid-check input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--success)}
 
 .empty{text-align:center;padding:50px 20px;color:var(--text3)}
+.worktype-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
+.worktype-check{display:flex;align-items:center;gap:6px;padding:6px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;transition:all .2s;font-size:12px;color:var(--text2)}
+.worktype-check:hover{border-color:var(--accent);color:var(--text)}
+.worktype-check input[type=checkbox]{width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.worktype-check.checked{border-color:var(--accent);background:rgba(79,142,247,.1);color:var(--accent);font-weight:600}
+.worktype-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;min-height:22px}
+.tag-worktype{background:rgba(79,142,247,.15);color:var(--accent);border:1px solid rgba(79,142,247,.3);padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600}
 .loading-overlay{position:fixed;inset:0;background:rgba(13,15,26,.8);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
 .loading-overlay.show{display:flex}
 .loading-spinner{width:40px;height:40px;border:3px solid rgba(79,142,247,.2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
@@ -438,12 +445,7 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
   <div id="cost-stats" style="display:none"></div>
   <div class="card" style="margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <input type="text" id="cost-search" placeholder="🔍　物件名・工事番号・顧客名で絞り込み..." oninput="renderCost()" style="flex:1;min-width:200px">
-      <select id="cost-group" onchange="renderCost()" style="width:auto">
-        <option value="property">物件名でまとめる</option>
-        <option value="jobno">工事番号でまとめる</option>
-        <option value="customer">顧客名でまとめる</option>
-      </select>
+      <input type="text" id="cost-search" placeholder="🔍　工事番号・物件名・顧客名で絞り込み..." oninput="renderCost()" style="flex:1;min-width:200px">
       <button class="btn btn-primary btn-sm" onclick="openNewProjModal()">＋ 物件を追加</button>
     </div>
   </div>
@@ -451,8 +453,8 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
     <div class="cost-table-wrap">
       <table class="cost-table">
         <thead><tr>
-          <th>物件 / グループ</th>
           <th>工事番号</th>
+          <th>物件名</th>
           <th>顧客名</th>
           <th>工種</th>
           <th>市町村</th>
@@ -542,22 +544,32 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
       <input type="hidden" id="pj-key">
       <div class="proj-grid" style="margin-bottom:14px">
         <div class="field pg3"><label>工事名称（物件名）</label><input type="text" id="pj-name" placeholder="自動入力されます" readonly style="opacity:.7"></div>
-        <div class="field pg2"><label>工事番号</label><input type="text" id="pj-jobno" placeholder="例：KJ-2024-001"></div>
+        <div class="field pg2"><label>工事番号</label>
+          <input type="text" id="pj-jobno" placeholder="例：KJ-2024-001"
+            list="pj-jobno-suggestions"
+            oninput="suggestProjJobno(this)"
+            onchange="autofillFromJobno(this.value)"
+            onblur="autofillFromJobno(this.value)">
+          <datalist id="pj-jobno-suggestions"></datalist>
+        </div>
         <div class="field"><label>顧客名</label><input type="text" id="pj-customer" placeholder="例：田中様"></div>
-        <div class="field pg2"><label>工種</label>
-          <select id="pj-worktype">
-            <option value="">─ 選択 ─</option>
-            <option value="interior">内装工事</option>
-            <option value="exterior">外装工事</option>
-            <option value="roofing">屋根工事</option>
-            <option value="waterproof">防水工事</option>
-            <option value="painting">塗装工事</option>
-            <option value="plumbing">水道・設備工事</option>
-            <option value="electrical">電気工事</option>
-            <option value="garden">外構・造園工事</option>
-            <option value="full">フルリフォーム</option>
-            <option value="other">その他</option>
-          </select>
+        <div class="field pg3"><label>工種（複数選択可）</label>
+          <div class="worktype-grid" id="pj-worktype-checks">
+            <label class="worktype-check"><input type="checkbox" value="内装工事" onchange="updateWorktypeTags()">内装工事</label>
+            <label class="worktype-check"><input type="checkbox" value="外装工事" onchange="updateWorktypeTags()">外装工事</label>
+            <label class="worktype-check"><input type="checkbox" value="屋根工事" onchange="updateWorktypeTags()">屋根工事</label>
+            <label class="worktype-check"><input type="checkbox" value="防水工事" onchange="updateWorktypeTags()">防水工事</label>
+            <label class="worktype-check"><input type="checkbox" value="塗装工事" onchange="updateWorktypeTags()">塗装工事</label>
+            <label class="worktype-check"><input type="checkbox" value="水道・設備工事" onchange="updateWorktypeTags()">水道・設備</label>
+            <label class="worktype-check"><input type="checkbox" value="電気工事" onchange="updateWorktypeTags()">電気工事</label>
+            <label class="worktype-check"><input type="checkbox" value="外構・造園工事" onchange="updateWorktypeTags()">外構・造園</label>
+            <label class="worktype-check"><input type="checkbox" value="フルリフォーム" onchange="updateWorktypeTags()">フルリフォーム</label>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:11px;color:var(--text3);white-space:nowrap">その他：</span>
+            <input type="text" id="pj-worktype-other" placeholder="例：解体工事" oninput="updateWorktypeTags()" style="font-size:12px;padding:6px 10px">
+          </div>
+          <div class="worktype-tags" id="pj-worktype-tags"></div>
         </div>
         <div class="field"><label>市町村</label><input type="text" id="pj-city" placeholder="例：那覇市"></div>
         <div class="field"><label>着工日</label><input type="date" id="pj-start"></div>
@@ -729,6 +741,7 @@ function projToRow(o){
     jobno: o.jobno||null,
     customer: o.customer||null,
     worktype: o.worktype||null,
+    worktypes: o.worktypes||null,
     city: o.city||null,
     start_date: o.startDate||null,
     end_date: o.endDate||null,
@@ -744,6 +757,7 @@ function rowToProj(r){
     jobno: r.jobno||'',
     customer: r.customer||'',
     worktype: r.worktype||'',
+    worktypes: r.worktypes||[],
     city: r.city||'',
     startDate: r.start_date||'',
     endDate: r.end_date||'',
@@ -878,7 +892,12 @@ function addSiteRow(prefix){
     <div class="site-grid">
       <div class="field s2"><label>顧客名</label><input class="sr-customer" type="text" placeholder="例：田中様" oninput="suggestJobno(this)"></div>
       <div class="field s3"><label>物件名</label><input class="sr-property" type="text" placeholder="例：田中邸リフォーム" oninput="suggestJobno(this)"></div>
-      <div class="field s3"><label>工事番号</label><input class="sr-jobno" type="text" placeholder="例：KJ-2024-001" list="jobno-suggestions"></div>
+      <div class="field s3"><label>工事番号</label>
+        <input class="sr-jobno" type="text" placeholder="例：KJ-2024-001" list="jobno-suggestions"
+          oninput="suggestJobno(this)"
+          onblur="autofillSiteFromJobno(this)"
+          onchange="autofillSiteFromJobno(this)">
+      </div>
       <div class="field s2"><label>材料種別</label>
         <select class="sr-material">
           <option value="">─ 選択 ─</option>
@@ -896,6 +915,24 @@ function addSiteRow(prefix){
             <option value="sub_other">外注：その他</option>
           </optgroup>
         </select>
+      </div>
+      <div class="field s3"><label>工種（複数選択可）</label>
+        <div class="worktype-grid sr-worktype-checks">
+          <label class="worktype-check"><input type="checkbox" value="内装工事" onchange="updateSiteWorktypeTags(this)">内装工事</label>
+          <label class="worktype-check"><input type="checkbox" value="外装工事" onchange="updateSiteWorktypeTags(this)">外装工事</label>
+          <label class="worktype-check"><input type="checkbox" value="屋根工事" onchange="updateSiteWorktypeTags(this)">屋根工事</label>
+          <label class="worktype-check"><input type="checkbox" value="防水工事" onchange="updateSiteWorktypeTags(this)">防水工事</label>
+          <label class="worktype-check"><input type="checkbox" value="塗装工事" onchange="updateSiteWorktypeTags(this)">塗装工事</label>
+          <label class="worktype-check"><input type="checkbox" value="水道・設備工事" onchange="updateSiteWorktypeTags(this)">水道・設備</label>
+          <label class="worktype-check"><input type="checkbox" value="電気工事" onchange="updateSiteWorktypeTags(this)">電気工事</label>
+          <label class="worktype-check"><input type="checkbox" value="外構・造園工事" onchange="updateSiteWorktypeTags(this)">外構・造園</label>
+          <label class="worktype-check"><input type="checkbox" value="フルリフォーム" onchange="updateSiteWorktypeTags(this)">フルリフォーム</label>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+          <span style="font-size:11px;color:var(--text3);white-space:nowrap">その他：</span>
+          <input type="text" class="sr-worktype-other" placeholder="例：解体工事" oninput="updateSiteWorktypeTags(this)" style="font-size:12px;padding:5px 8px">
+        </div>
+        <div class="worktype-tags sr-worktype-tags"></div>
       </div>
       <div class="field s3"><label>商品名</label><input class="sr-product" type="text" placeholder="例：フロアタイル EF-2301"></div>
       <div class="field s2"><label>品番・カラー番号</label><input class="sr-code" type="text" placeholder="例：EF-2301-AB"></div>
@@ -929,6 +966,7 @@ function getSiteRows(prefix){
     property:row.querySelector('.sr-property').value.trim(),
     jobno:row.querySelector('.sr-jobno').value.trim(),
     material:row.querySelector('.sr-material').value,
+    worktypes:getSiteWorktypes(row),
     product:row.querySelector('.sr-product').value.trim(),
     code:row.querySelector('.sr-code').value.trim(),
     amount:parseFloat(row.querySelector('.sr-amount').value)||0,
@@ -1306,7 +1344,7 @@ function getProjMap(){
 
 function renderCost(){
   const q=(document.getElementById('cost-search').value||'').trim().toLowerCase();
-  const gby=document.getElementById('cost-group').value;
+  const gby='jobno';
   const projMap=getProjMap();
 
   // flatten
@@ -1316,7 +1354,7 @@ function renderCost(){
   // group
   const groups={};
   flat.forEach(s=>{
-    const key=s[gby]||'(未設定)';
+    const key=s[gby]||'(工事番号未設定)';
     if(!groups[key])groups[key]={key,items:[],receipts:0,invoices:0,total:0,materialCost:0,subCost:0,materials:{},customers:new Set(),jobnos:new Set(),properties:new Set()};
     const g=groups[key];
     g.items.push(s);g.total+=(s.amount||0);
@@ -1328,13 +1366,14 @@ function renderCost(){
     if(s.property)g.properties.add(s.property);
   });
 
-  // 書類未登録でも projects に存在する物件を追加
+  // 書類未登録でも projects に存在する物件を追加（jobnoをキーにする）
   allProjects.forEach(p=>{
-    if(!groups[p.key]){
-      groups[p.key]={key:p.key,items:[],receipts:0,invoices:0,total:0,materialCost:0,subCost:0,materials:{},
+    const pkey = p.jobno||p.key;
+    if(!groups[pkey]){
+      groups[pkey]={key:pkey,items:[],receipts:0,invoices:0,total:0,materialCost:0,subCost:0,materials:{},
         customers:new Set(p.customer?[p.customer]:[]),
         jobnos:new Set(p.jobno?[p.jobno]:[]),
-        properties:new Set([p.key]),
+        properties:new Set(p.key?[p.key]:[]),
         standalone:true};
     }
   });
@@ -1364,16 +1403,16 @@ function renderCost(){
       :`<span class="pct-badge pct-neg">${pctNum}%</span>`;
     const chips=Object.entries(g.materials).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m,v])=>`<span class="chip">${MAT_LABEL[m]||m} ¥${v.toLocaleString()}</span>`).join(' ');
     const cust=[...g.customers].slice(0,2).join('・')||'―';
-    const job=[...g.jobnos].slice(0,2).join('・')||'―';
-    const workLbl=WORK_LABEL[p.worktype]||'―';
+    const prop=[...g.properties].slice(0,2).join('・')||(p.key&&p.key!==g.key?p.key:'')||'―';
+    const workLbl=(p.worktypes&&p.worktypes.length)?p.worktypes.join('・'):(p.worktype?WORK_LABEL[p.worktype]||p.worktype:'―');
     const city=p.city||'―';
     const period=(p.startDate||p.endDate)?`${p.startDate||'?'} 〜 ${p.endDate||'?'}`:'―';
     const profitStyle=profit>=0?'color:var(--success)':'color:var(--danger)';
     const budget=contract-g.total;
     const usedPct=contract?Math.round(g.total/contract*100):0;
     return `<tr${g.standalone?' style="opacity:.8;background:rgba(79,142,247,.03)"':''}>
-      <td style="font-weight:700;min-width:120px">${g.key}${g.standalone?'<br><span style="font-size:10px;color:var(--text3);font-weight:400">📋 書類未登録</span>':''}</td>
-      <td style="color:var(--text2);font-size:11px;min-width:100px">${job}</td>
+      <td style="font-weight:700;min-width:120px;font-family:'Space Mono',monospace;font-size:12px">${g.key}${g.standalone?'<br><span style="font-size:10px;color:var(--text3);font-weight:400;font-family:'Noto Sans JP',sans-serif">📋 書類未登録</span>':''}</td>
+      <td style="color:var(--text2);font-size:11px;min-width:120px">${prop}</td>
       <td style="color:var(--text2);font-size:11px;min-width:80px">${cust}</td>
       <td style="color:var(--text2);font-size:11px;white-space:nowrap">${workLbl}</td>
       <td style="color:var(--text2);font-size:11px;white-space:nowrap">${city}</td>
@@ -1395,7 +1434,7 @@ function renderCost(){
       </td>
       <td style="white-space:nowrap">
         <button class="btn btn-outline btn-sm" style="margin-right:4px" onclick="openProjModal('${encodeURIComponent(g.key)}',${g.total})">✏️ 工事情報</button>
-        <button class="btn btn-outline btn-sm" onclick="showCostDetail('${encodeURIComponent(g.key)}','${gby}')">明細</button>
+        <button class="btn btn-outline btn-sm" onclick="showCostDetail('${encodeURIComponent(g.key)}','jobno')">明細</button>
       </td>
     </tr>`;
   }).join('');
@@ -1470,7 +1509,7 @@ function openNewProjModal(){
   document.getElementById('pj-name').style.opacity='1';
   document.getElementById('pj-jobno').value='';
   document.getElementById('pj-customer').value='';
-  document.getElementById('pj-worktype').value='';
+  clearWorktypeChecks();
   document.getElementById('pj-city').value='';
   document.getElementById('pj-start').value='';
   document.getElementById('pj-end').value='';
@@ -1498,7 +1537,7 @@ async function openProjModal(keyEnc, costTotal){
   document.getElementById('pj-name').style.opacity='0.7';
   document.getElementById('pj-jobno').value=proj.jobno||'';
   document.getElementById('pj-customer').value=proj.customer||'';
-  document.getElementById('pj-worktype').value=proj.worktype||'';
+  loadWorktypeChecks(proj.worktypes||[]);
   document.getElementById('pj-city').value=proj.city||'';
   document.getElementById('pj-start').value=proj.startDate||'';
   document.getElementById('pj-end').value=proj.endDate||'';
@@ -1553,7 +1592,7 @@ async function saveProjInfo(){
     key,
     jobno:document.getElementById('pj-jobno').value.trim(),
     customer:document.getElementById('pj-customer').value.trim(),
-    worktype:document.getElementById('pj-worktype').value,
+    worktypes:getWorktypeValues(),
     city:document.getElementById('pj-city').value.trim(),
     startDate:document.getElementById('pj-start').value,
     endDate:document.getElementById('pj-end').value,
@@ -1730,6 +1769,161 @@ async function deleteProjInfo(){
   closeProjModal();
   allProjects=await projGetAll();
   renderCost();
+}
+
+// ── 工種チェックボックス管理 ──
+function getWorktypeValues(){
+  const checked=[...document.querySelectorAll('#pj-worktype-checks input:checked')].map(el=>el.value);
+  const other=document.getElementById('pj-worktype-other').value.trim();
+  if(other) checked.push(other);
+  return checked;
+}
+
+function clearWorktypeChecks(){
+  document.querySelectorAll('#pj-worktype-checks input').forEach(el=>{
+    el.checked=false;
+    el.closest('.worktype-check').classList.remove('checked');
+  });
+  document.getElementById('pj-worktype-other').value='';
+  updateWorktypeTags();
+}
+
+function loadWorktypeChecks(worktypes){
+  clearWorktypeChecks();
+  if(!worktypes||!worktypes.length) return;
+  const presets=new Set([...document.querySelectorAll('#pj-worktype-checks input')].map(el=>el.value));
+  const others=[];
+  worktypes.forEach(w=>{
+    const el=document.querySelector(`#pj-worktype-checks input[value="${w}"]`);
+    if(el){
+      el.checked=true;
+      el.closest('.worktype-check').classList.add('checked');
+    } else {
+      others.push(w);
+    }
+  });
+  if(others.length) document.getElementById('pj-worktype-other').value=others.join('、');
+  updateWorktypeTags();
+}
+
+function updateWorktypeTags(){
+  const vals=getWorktypeValues();
+  const wrap=document.getElementById('pj-worktype-tags');
+  wrap.innerHTML=vals.map(v=>`<span class="tag tag-worktype">${v}</span>`).join('');
+  // チェック済みのラベルにcheckedクラス付与
+  document.querySelectorAll('#pj-worktype-checks .worktype-check').forEach(label=>{
+    label.classList.toggle('checked', label.querySelector('input').checked);
+  });
+  // localStorageに保存
+  try{ localStorage.setItem('koji_worktypes_last', JSON.stringify(vals)); }catch(e){}
+}
+
+// ── 書類登録: 現場行の工種タグ更新 ──
+function updateSiteWorktypeTags(el){
+  const row = el.closest('.site-row');
+  const checked = [...row.querySelectorAll('.sr-worktype-checks input:checked')].map(i=>i.value);
+  const other = row.querySelector('.sr-worktype-other').value.trim();
+  if(other) checked.push(other);
+  const tagsWrap = row.querySelector('.sr-worktype-tags');
+  tagsWrap.innerHTML = checked.map(v=>`<span class="tag tag-worktype">${v}</span>`).join('');
+  row.querySelectorAll('.sr-worktype-checks .worktype-check').forEach(label=>{
+    label.classList.toggle('checked', label.querySelector('input').checked);
+  });
+}
+
+function getSiteWorktypes(row){
+  const checked = [...row.querySelectorAll('.sr-worktype-checks input:checked')].map(i=>i.value);
+  const other = row.querySelector('.sr-worktype-other').value.trim();
+  if(other) checked.push(other);
+  return checked;
+}
+
+function loadSiteWorktypes(row, worktypes){
+  if(!worktypes||!worktypes.length) return;
+  const presets = new Set([...row.querySelectorAll('.sr-worktype-checks input')].map(i=>i.value));
+  const others = [];
+  worktypes.forEach(w=>{
+    const el = row.querySelector(`.sr-worktype-checks input[value="${w}"]`);
+    if(el){ el.checked=true; el.closest('.worktype-check').classList.add('checked'); }
+    else others.push(w);
+  });
+  if(others.length) row.querySelector('.sr-worktype-other').value = others.join('、');
+  updateSiteWorktypeTags(row.querySelector('.sr-worktype-checks input'));
+}
+
+// ── 書類登録: 工事番号から物件名・顧客名を自動入力 ──
+function autofillSiteFromJobno(input){
+  const jobno = input.value.trim();
+  if(!jobno) return;
+  const row = input.closest('.site-row');
+  const customerEl = row.querySelector('.sr-customer');
+  const propertyEl = row.querySelector('.sr-property');
+  // projectsから検索
+  const proj = allProjects.find(p=>p.jobno===jobno);
+  if(proj){
+    if(proj.customer && !customerEl.value) customerEl.value = proj.customer;
+    if(proj.key && !propertyEl.value) propertyEl.value = proj.key;
+    if(proj.worktypes && proj.worktypes.length) loadSiteWorktypes(row, proj.worktypes);
+    return;
+  }
+  // recordsのsitesから検索
+  for(const rec of allRecords){
+    const site = (rec.sites||[]).find(s=>s.jobno===jobno);
+    if(site){
+      if(site.customer && !customerEl.value) customerEl.value = site.customer;
+      if(site.property && !propertyEl.value) propertyEl.value = site.property;
+      if(site.worktypes && site.worktypes.length) loadSiteWorktypes(row, site.worktypes);
+      return;
+    }
+  }
+}
+
+// ── 工事番号サジェスト（工事情報モーダル用）──
+function suggestProjJobno(input){
+  const q=input.value.trim().toLowerCase();
+  if(!q) return;
+  const seen=new Set();
+  const opts=[];
+  allProjects.forEach(p=>{
+    if(p.jobno&&p.jobno.toLowerCase().includes(q)&&!seen.has(p.jobno)){
+      seen.add(p.jobno);
+      opts.push({jobno:p.jobno,customer:p.customer||'',key:p.key});
+    }
+  });
+  allRecords.forEach(rec=>{
+    (rec.sites||[]).forEach(s=>{
+      if(s.jobno&&s.jobno.toLowerCase().includes(q)&&!seen.has(s.jobno)){
+        seen.add(s.jobno);
+        opts.push({jobno:s.jobno,customer:s.customer||'',key:s.property||''});
+      }
+    });
+  });
+  const dl=document.getElementById('pj-jobno-suggestions');
+  dl.innerHTML=opts.slice(0,10).map(o=>`<option value="${o.jobno}" label="${o.customer} / ${o.key}">`).join('');
+}
+
+// ── 工事番号から自動入力 ──
+function autofillFromJobno(jobno){
+  if(!jobno) return;
+  // projectsから検索
+  const proj=allProjects.find(p=>p.jobno===jobno);
+  if(proj){
+    if(proj.customer) document.getElementById('pj-customer').value=proj.customer;
+    if(proj.key&&document.getElementById('pj-key').value==='__new__')
+      document.getElementById('pj-name').value=proj.key;
+    return;
+  }
+  // recordsのsitesから検索
+  for(const rec of allRecords){
+    const site=(rec.sites||[]).find(s=>s.jobno===jobno);
+    if(site){
+      if(site.customer&&!document.getElementById('pj-customer').value)
+        document.getElementById('pj-customer').value=site.customer;
+      if(site.property&&document.getElementById('pj-key').value==='__new__'&&!document.getElementById('pj-name').value)
+        document.getElementById('pj-name').value=site.property;
+      return;
+    }
+  }
 }
 
 function closeProjModal(e){
