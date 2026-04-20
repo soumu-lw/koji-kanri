@@ -543,14 +543,17 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
     <div class="modal-body">
       <input type="hidden" id="pj-key">
       <div class="proj-grid" style="margin-bottom:14px">
-        <div class="field pg3"><label>工事名称（物件名）</label><input type="text" id="pj-name" placeholder="自動入力されます" readonly style="opacity:.7"></div>
+        <div class="field pg3"><label>工事名称</label>
+          <input type="text" id="pj-name" placeholder="工事番号を入力すると自動入力（手動入力・訂正も可）" style="opacity:1">
+        </div>
         <div class="field pg2"><label>工事番号</label>
           <input type="text" id="pj-jobno" placeholder="例：KJ-2024-001"
             list="pj-jobno-suggestions"
-            oninput="suggestProjJobno(this)"
+            oninput="suggestProjJobno(this);autofillFromJobno(this.value)"
             onchange="autofillFromJobno(this.value)"
             onblur="autofillFromJobno(this.value)">
           <datalist id="pj-jobno-suggestions"></datalist>
+          <div style="font-size:10px;color:var(--text3);margin-top:3px">過去の工事番号を入力すると自動入力されます</div>
         </div>
         <div class="field"><label>顧客名</label><input type="text" id="pj-customer" placeholder="例：田中様"></div>
         <div class="field pg3"><label>工種（複数選択可）</label>
@@ -738,6 +741,7 @@ function rowToRec(r){
 function projToRow(o){
   return {
     key: o.key,
+    name: o.name||null,
     jobno: o.jobno||null,
     customer: o.customer||null,
     worktype: o.worktype||null,
@@ -754,6 +758,7 @@ function projToRow(o){
 function rowToProj(r){
   return {
     key: r.key,
+    name: r.name||'',
     jobno: r.jobno||'',
     customer: r.customer||'',
     worktype: r.worktype||'',
@@ -1403,7 +1408,7 @@ function renderCost(){
       :`<span class="pct-badge pct-neg">${pctNum}%</span>`;
     const chips=Object.entries(g.materials).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([m,v])=>`<span class="chip">${MAT_LABEL[m]||m} ¥${v.toLocaleString()}</span>`).join(' ');
     const cust=[...g.customers].slice(0,2).join('・')||'―';
-    const prop=[...g.properties].slice(0,2).join('・')||(p.key&&p.key!==g.key?p.key:'')||'―';
+    const prop=p.name||[...g.properties].slice(0,2).join('・')||(p.key&&p.key!==g.key?p.key:'')||'―';
     const workLbl=(p.worktypes&&p.worktypes.length)?p.worktypes.join('・'):(p.worktype?WORK_LABEL[p.worktype]||p.worktype:'―');
     const city=p.city||'―';
     const period=(p.startDate||p.endDate)?`${p.startDate||'?'} 〜 ${p.endDate||'?'}`:'―';
@@ -1505,7 +1510,7 @@ function openNewProjModal(){
   document.getElementById('pj-key').value='__new__';
   document.getElementById('pj-name').value='';
   document.getElementById('pj-name').removeAttribute('readonly');
-  document.getElementById('pj-name').placeholder='物件名を入力（集計キーになります）';
+  document.getElementById('pj-name').placeholder='工事番号を入力すると自動入力';
   document.getElementById('pj-name').style.opacity='1';
   document.getElementById('pj-jobno').value='';
   document.getElementById('pj-customer').value='';
@@ -1532,9 +1537,9 @@ async function openProjModal(keyEnc, costTotal){
   const proj=await projGet(key)||{};
 
   document.getElementById('pj-key').value=key;
-  document.getElementById('pj-name').value=key;
-  document.getElementById('pj-name').setAttribute('readonly','');
-  document.getElementById('pj-name').style.opacity='0.7';
+  document.getElementById('pj-name').value=proj.name||key;
+  document.getElementById('pj-name').removeAttribute('readonly');
+  document.getElementById('pj-name').style.opacity='1';
   document.getElementById('pj-jobno').value=proj.jobno||'';
   document.getElementById('pj-customer').value=proj.customer||'';
   loadWorktypeChecks(proj.worktypes||[]);
@@ -1580,16 +1585,19 @@ function updateProfitPreview(){
 
 async function saveProjInfo(){
   let key=document.getElementById('pj-key').value;
-  // 新規の場合は物件名をキーにする
+  const jobnoVal=document.getElementById('pj-jobno').value.trim();
+  const nameVal=document.getElementById('pj-name').value.trim();
+  // 新規の場合は工事番号をキーにする（なければ工事名称）
   if(key==='__new__'){
-    key=document.getElementById('pj-name').value.trim();
-    if(!key){toast('物件名を入力してください','#ef4444');return;}
+    key=jobnoVal||nameVal;
+    if(!key){toast('工事番号または工事名称を入力してください','#ef4444');return;}
     const existing=await projGet(key);
     if(existing&&!confirm(`「${key}」はすでに登録されています。上書きしますか？`))return;
   }
   const billingPhases=getBillingRows();
   const obj={
     key,
+    name:nameVal||document.getElementById('pj-name').value.trim(),
     jobno:document.getElementById('pj-jobno').value.trim(),
     customer:document.getElementById('pj-customer').value.trim(),
     worktypes:getWorktypeValues(),
@@ -1902,28 +1910,44 @@ function suggestProjJobno(input){
   dl.innerHTML=opts.slice(0,10).map(o=>`<option value="${o.jobno}" label="${o.customer} / ${o.key}">`).join('');
 }
 
-// ── 工事番号から自動入力 ──
+// ── 工事番号から自動入力（訂正可能）──
 function autofillFromJobno(jobno){
-  if(!jobno) return;
-  // projectsから検索
-  const proj=allProjects.find(p=>p.jobno===jobno);
+  if(!jobno||jobno.length<2) return;
+  const nameEl = document.getElementById('pj-name');
+  const customerEl = document.getElementById('pj-customer');
+
+  // 1. projectsから完全一致で検索
+  const proj = allProjects.find(p=>p.jobno===jobno);
   if(proj){
-    if(proj.customer) document.getElementById('pj-customer').value=proj.customer;
-    if(proj.key&&document.getElementById('pj-key').value==='__new__')
-      document.getElementById('pj-name').value=proj.key;
+    // 自動入力（手動入力済みでも上書き → ユーザーが後から訂正可能）
+    if(proj.key) nameEl.value = proj.key;
+    if(proj.customer) customerEl.value = proj.customer;
+    if(proj.worktypes&&proj.worktypes.length) loadWorktypeChecks(proj.worktypes);
+    if(proj.city) document.getElementById('pj-city').value = proj.city;
+    flashInput(nameEl);
+    flashInput(customerEl);
     return;
   }
-  // recordsのsitesから検索
+
+  // 2. recordsのsitesから完全一致で検索
   for(const rec of allRecords){
     const site=(rec.sites||[]).find(s=>s.jobno===jobno);
     if(site){
-      if(site.customer&&!document.getElementById('pj-customer').value)
-        document.getElementById('pj-customer').value=site.customer;
-      if(site.property&&document.getElementById('pj-key').value==='__new__'&&!document.getElementById('pj-name').value)
-        document.getElementById('pj-name').value=site.property;
+      if(site.property) nameEl.value = site.property;
+      if(site.customer) customerEl.value = site.customer;
+      if(site.worktypes&&site.worktypes.length) loadWorktypeChecks(site.worktypes);
+      flashInput(nameEl);
+      flashInput(customerEl);
       return;
     }
   }
+}
+
+// 自動入力されたフィールドを一瞬光らせてわかりやすくする
+function flashInput(el){
+  el.style.transition='background .3s';
+  el.style.background='rgba(79,142,247,.2)';
+  setTimeout(()=>{ el.style.background=''; },800);
 }
 
 function closeProjModal(e){
