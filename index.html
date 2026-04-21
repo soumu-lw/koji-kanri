@@ -127,6 +127,7 @@ select option{background:var(--surface2)}
 .cost-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
 .cost-table tr:last-child td{border-bottom:none}
 .cost-table tr:hover td{background:var(--surface2)}
+.cost-table tr[onclick]:hover td{background:rgba(79,142,247,.07);transition:background .15s}
 .cost-table tr[onclick]:hover td{background:rgba(79,142,247,.08);cursor:pointer}
 .num{text-align:right;font-family:'Space Mono',monospace}
 .total-row td{font-weight:700;color:var(--accent);background:rgba(79,142,247,.06)}
@@ -469,6 +470,7 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
           <th>使用率</th>
           <th></th>
         </tr></thead>
+        <!-- 行クリックで工事情報編集モーダルが開きます -->
         <tbody id="cost-tbody"></tbody>
         <tfoot id="cost-tfoot"></tfoot>
       </table>
@@ -1416,7 +1418,7 @@ function renderCost(){
     const profitStyle=profit>=0?'color:var(--success)':'color:var(--danger)';
     const budget=contract-g.total;
     const usedPct=contract?Math.round(g.total/contract*100):0;
-    return `<tr${g.standalone?' style="opacity:.8;background:rgba(79,142,247,.03)"':''}>
+    return `<tr style="cursor:pointer;${g.standalone?'opacity:.8;background:rgba(79,142,247,.03)':''}" onclick="openProjModal('${encodeURIComponent(g.key)}',${g.total})" title="クリックして工事情報を編集">
       <td style="font-weight:700;min-width:120px;font-family:'Space Mono',monospace;font-size:12px">${g.key}${g.standalone?'<br><span style="font-size:10px;color:var(--text3);font-weight:400">📋 書類未登録</span>':''}</td>
       <td style="color:var(--text2);font-size:11px;min-width:120px">${prop}</td>
       <td style="color:var(--text2);font-size:11px;min-width:80px">${cust}</td>
@@ -1438,8 +1440,7 @@ function renderCost(){
           <span style="font-size:11px;color:${usedPct>100?'var(--danger)':usedPct>80?'var(--warn)':'var(--text3)'}">${usedPct}%</span>
         </div>`:'―'}
       </td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-outline btn-sm" style="margin-right:4px" onclick="openProjModal('${encodeURIComponent(g.key)}',${g.total})">✏️ 工事情報</button>
+      <td style="white-space:nowrap" onclick="event.stopPropagation()">
         <button class="btn btn-outline btn-sm" onclick="showCostDetail('${encodeURIComponent(g.key)}','jobno')">明細</button>
       </td>
     </tr>`;
