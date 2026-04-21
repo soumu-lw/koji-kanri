@@ -1869,8 +1869,10 @@ function autofillSiteFromJobno(input){
   // projectsから検索
   const proj = allProjects.find(p=>p.jobno===jobno);
   if(proj){
-    if(proj.customer && !customerEl.value) customerEl.value = proj.customer;
-    if(proj.key && !propertyEl.value) propertyEl.value = proj.key;
+    if(proj.customer) customerEl.value = proj.customer;
+    // 工事名称(name)を優先、なければkeyを使用
+    const propName = proj.name || proj.key || '';
+    if(propName) propertyEl.value = propName;
     if(proj.worktypes && proj.worktypes.length) loadSiteWorktypes(row, proj.worktypes);
     return;
   }
