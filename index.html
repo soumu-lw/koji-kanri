@@ -900,6 +900,7 @@ function addSiteRow(prefix){
       <div class="field s3"><label>工事番号</label>
         <input class="sr-jobno" type="text" placeholder="例：KJ-2024-001" list="jobno-suggestions"
           oninput="suggestJobno(this)"
+          oninput="suggestJobno(this);autofillSiteFromJobno(this)"
           onblur="autofillSiteFromJobno(this)"
           onchange="autofillSiteFromJobno(this)">
       </div>
@@ -1866,22 +1867,21 @@ function autofillSiteFromJobno(input){
   const row = input.closest('.site-row');
   const customerEl = row.querySelector('.sr-customer');
   const propertyEl = row.querySelector('.sr-property');
-  // projectsから検索
+  // 1. projectsから完全一致で検索（原価集計で登録した工事情報を優先）
   const proj = allProjects.find(p=>p.jobno===jobno);
   if(proj){
-    if(proj.customer) customerEl.value = proj.customer;
-    // 工事名称(name)を優先、なければkeyを使用
     const propName = proj.name || proj.key || '';
-    if(propName) propertyEl.value = propName;
+    if(propName){ propertyEl.value = propName; flashField(propertyEl); }
+    if(proj.customer){ customerEl.value = proj.customer; flashField(customerEl); }
     if(proj.worktypes && proj.worktypes.length) loadSiteWorktypes(row, proj.worktypes);
     return;
   }
-  // recordsのsitesから検索
+  // 2. recordsのsitesから検索（過去書類データから補完）
   for(const rec of allRecords){
     const site = (rec.sites||[]).find(s=>s.jobno===jobno);
     if(site){
-      if(site.customer && !customerEl.value) customerEl.value = site.customer;
-      if(site.property && !propertyEl.value) propertyEl.value = site.property;
+      if(site.property){ propertyEl.value = site.property; flashField(propertyEl); }
+      if(site.customer){ customerEl.value = site.customer; flashField(customerEl); }
       if(site.worktypes && site.worktypes.length) loadSiteWorktypes(row, site.worktypes);
       return;
     }
@@ -1921,13 +1921,12 @@ function autofillFromJobno(jobno){
   // 1. projectsから完全一致で検索
   const proj = allProjects.find(p=>p.jobno===jobno);
   if(proj){
-    // 自動入力（手動入力済みでも上書き → ユーザーが後から訂正可能）
-    if(proj.key) nameEl.value = proj.key;
-    if(proj.customer) customerEl.value = proj.customer;
+    // 工事名称(name)を優先、なければkeyを使用
+    const projName = proj.name || proj.key || '';
+    if(projName){ nameEl.value = projName; flashInput(nameEl); }
+    if(proj.customer){ customerEl.value = proj.customer; flashInput(customerEl); }
     if(proj.worktypes&&proj.worktypes.length) loadWorktypeChecks(proj.worktypes);
     if(proj.city) document.getElementById('pj-city').value = proj.city;
-    flashInput(nameEl);
-    flashInput(customerEl);
     return;
   }
 
@@ -1947,10 +1946,12 @@ function autofillFromJobno(jobno){
 
 // 自動入力されたフィールドを一瞬光らせてわかりやすくする
 function flashInput(el){
+  if(!el) return;
   el.style.transition='background .3s';
   el.style.background='rgba(79,142,247,.2)';
   setTimeout(()=>{ el.style.background=''; },800);
 }
+function flashField(el){ flashInput(el); }
 
 function closeProjModal(e){
   if(!e||e.target===document.getElementById('modal-proj'))
