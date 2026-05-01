@@ -1530,26 +1530,47 @@ function renderCost(){
 
   if(q)rows=rows.filter(g=>[g.key,...g.customers,...g.jobnos,...g.properties].join(' ').toLowerCase().includes(q));
 
-  // ── 完工年を取得するヘルパー ──
-  function getEndYear(g){
+  // ── 決算期を取得するヘルパー（5月始まり・4月終わり）──
+  // 個人事業：2013年5月〜2016年4月（個人一期〜三期）
+  // 法　　人：2016年5月〜　　　　　（法人一期〜）
+  const KOJIN_START=2013;
+  const HOJIN_START=2016;
+
+  function getFiscalPeriod(g){
     const p=projMap[g.key]||{};
-    if(p.endDate&&p.endDate.length>=4) return p.endDate.substring(0,4);
-    // 完工日未設定の場合は書類日付の最新年を使う
-    const dates=g.items.map(s=>s.docdate).filter(Boolean).sort();
-    if(dates.length) return dates[dates.length-1].substring(0,4);
-    return '未設定';
+    let dateStr='';
+    if(p.endDate&&p.endDate.length>=7) dateStr=p.endDate;
+    else{
+      const dates=g.items.map(s=>s.docdate).filter(Boolean).sort();
+      if(dates.length) dateStr=dates[dates.length-1];
+    }
+    if(!dateStr) return {key:'未設定', label:'完工日未設定', startYear:0};
+    const y=parseInt(dateStr.substring(0,4),10);
+    const m=parseInt(dateStr.substring(5,7),10);
+    const fiscalStart = m>=5 ? y : y-1;
+    const endYear = fiscalStart+1;
+
+    let label;
+    if(fiscalStart < HOJIN_START){
+      // 個人期
+      const ki = fiscalStart - KOJIN_START + 1;
+      label = `個人${ki}期（${fiscalStart}年5月〜${endYear}年4月）`;
+    } else {
+      // 法人期（「法人」表記なし）
+      const ki = fiscalStart - HOJIN_START + 1;
+      label = `${ki}期（${fiscalStart}年5月〜${endYear}年4月）`;
+    }
+    return {key:String(fiscalStart), label, startYear:fiscalStart};
   }
 
-  // ── 完工年+工事番号順にソート ──
+  // ── 期+工事番号順にソート ──
   rows=Object.values(groups).filter(g=>!q||[g.key,...g.customers,...g.jobnos,...g.properties].join(' ').toLowerCase().includes(q));
   rows.sort((a,b)=>{
-    const ya=getEndYear(a), yb=getEndYear(b);
-    // 年の降順（新しい年が上）、未設定は最後
-    if(ya==='未設定'&&yb!=='未設定') return 1;
-    if(ya!=='未設定'&&yb==='未設定') return -1;
-    if(ya!==yb) return yb.localeCompare(ya);
-    // 同年内は工事番号の昇順
-    return a.key.localeCompare(b.key, 'ja');
+    const fa=getFiscalPeriod(a), fb=getFiscalPeriod(b);
+    if(fa.key==='未設定'&&fb.key!=='未設定') return 1;
+    if(fa.key!=='未設定'&&fb.key==='未設定') return -1;
+    if(fa.key!==fb.key) return fb.key.localeCompare(fa.key); // 新しい期が上
+    return a.key.localeCompare(b.key,'ja');
   });
 
   const grand=rows.reduce((s,g)=>s+g.total,0);
@@ -1561,25 +1582,29 @@ function renderCost(){
     return;
   }
 
-  // ── テーブルビュー（PC）── 年ごとのグループヘッダー付き
-  const yearGroupsPC={};
+  // ── テーブルビュー（PC）── 期ごとのグループヘッダー付き
+  const periodGroupsPC={};
   rows.forEach(g=>{
-    const yr=getEndYear(g);
-    if(!yearGroupsPC[yr]) yearGroupsPC[yr]=[];
-    yearGroupsPC[yr].push(g);
+    const fp=getFiscalPeriod(g);
+    if(!periodGroupsPC[fp.key]) periodGroupsPC[fp.key]={label:fp.label, rows:[]};
+    periodGroupsPC[fp.key].rows.push(g);
   });
-  const yearOrderPC=Object.keys(yearGroupsPC).sort((a,b)=>{
+  const periodOrderPC=Object.keys(periodGroupsPC).sort((a,b)=>{
     if(a==='未設定') return 1; if(b==='未設定') return -1; return b.localeCompare(a);
   });
 
-  document.getElementById('cost-tbody').innerHTML=yearOrderPC.map((yr,yi)=>{
-    const grpRows=yearGroupsPC[yr];
+  document.getElementById('cost-tbody').innerHTML=periodOrderPC.map((pk,yi)=>{
+    const {label, rows:grpRows}=periodGroupsPC[pk];
     const yrTotal=grpRows.reduce((s,g)=>s+g.total,0);
+    const contractTotal=grpRows.reduce((s,g)=>s+(projMap[g.key]?.contract||0),0);
     const isFirst=yi===0;
-    const grpId='yr-'+yr.replace(/\W/g,'_');
+    const grpId='yr-'+pk.replace(/\W/g,'_');
     const headerRow=`<tr class="year-header-row" style="background:rgba(79,142,247,.08);cursor:pointer" onclick="toggleTableYear('${grpId}',this)">
-      <td colspan="12" style="padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:1px;user-select:none">
-        <span class="yr-arrow" style="margin-right:6px;display:inline-block;transition:transform .2s;transform:${isFirst?'':'rotate(-90deg)'}">▼</span>📅 ${yr==='未設定'?'完工日未設定':yr+'年完工'} <span style="font-weight:400;color:var(--text3);margin-left:8px">${grpRows.length}件 ／ 原価合計 ¥${yrTotal.toLocaleString()}</span>
+      <td colspan="12" style="padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;user-select:none">
+        <span class="yr-arrow" style="margin-right:6px;display:inline-block;transition:transform .2s;transform:${isFirst?'':'rotate(-90deg)'}">▼</span>📅 ${label}
+        <span style="font-weight:400;color:var(--text3);margin-left:10px">${grpRows.length}件</span>
+        <span style="font-weight:400;color:var(--text3);margin-left:10px">請負合計 <span style="color:var(--info)">¥${contractTotal.toLocaleString()}</span></span>
+        <span style="font-weight:400;color:var(--text3);margin-left:10px">原価合計 <span style="color:var(--accent)">¥${yrTotal.toLocaleString()}</span></span>
       </td>
     </tr>`;
     return headerRow + grpRows.map(g=>{
@@ -1620,20 +1645,21 @@ function renderCost(){
 
   document.getElementById('cost-tfoot').innerHTML='';
 
-  // ── カードビュー（スマホ）── 年ごとにアコーディオン
-  const yearGroupsSP={};
+  // ── カードビュー（スマホ）── 期ごとにアコーディオン
+  const periodGroupsSP={};
   rows.forEach(g=>{
-    const yr=getEndYear(g);
-    if(!yearGroupsSP[yr]) yearGroupsSP[yr]=[];
-    yearGroupsSP[yr].push(g);
+    const fp=getFiscalPeriod(g);
+    if(!periodGroupsSP[fp.key]) periodGroupsSP[fp.key]={label:fp.label, rows:[]};
+    periodGroupsSP[fp.key].rows.push(g);
   });
-  const yearOrderSP=Object.keys(yearGroupsSP).sort((a,b)=>{
+  const periodOrderSP=Object.keys(periodGroupsSP).sort((a,b)=>{
     if(a==='未設定') return 1; if(b==='未設定') return -1; return b.localeCompare(a);
   });
 
-  document.getElementById('cost-card-view').innerHTML=yearOrderSP.map((yr,yi)=>{
-    const grpRows=yearGroupsSP[yr];
+  document.getElementById('cost-card-view').innerHTML=periodOrderSP.map((pk,yi)=>{
+    const {label, rows:grpRows}=periodGroupsSP[pk];
     const yrTotal=grpRows.reduce((s,g)=>s+g.total,0);
+    const contractTotal=grpRows.reduce((s,g)=>s+(projMap[g.key]?.contract||0),0);
     const cards=grpRows.map(g=>{
       const p=projMap[g.key]||{};
       const contract=p.contract||0;
@@ -1678,11 +1704,13 @@ function renderCost(){
         </div>
       </div>`;
     }).join('');
-    const isFirst = yi===0; // 最新年のみ初期表示で開く
+    const isFirst = yi===0;
     return `<div class="cost-year-section">
       <div class="cost-year-header${isFirst?'':' collapsed'}" onclick="toggleYearSection(this)">
-        📅 ${yr==='未設定'?'完工日未設定':yr+'年完工'}
-        <span style="font-size:11px;font-weight:400;color:var(--text2)">${grpRows.length}件 ／ ¥${Math.round(yrTotal/10000)}万</span>
+        <div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0">
+          <span>📅 ${label}</span>
+          <span style="font-size:10px;font-weight:400;color:var(--text2)">${grpRows.length}件　請負 ¥${Math.round(contractTotal/10000)}万　原価 ¥${Math.round(yrTotal/10000)}万</span>
+        </div>
         <span class="yh-toggle">▼</span>
       </div>
       <div class="cost-year-body${isFirst?'':' hidden'}">${cards}</div>
