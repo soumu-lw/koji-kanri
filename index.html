@@ -557,6 +557,8 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <input type="text" id="cost-search" placeholder="🔍　工事番号・物件名・顧客名で絞り込み..." oninput="renderCost()" style="flex:1;min-width:200px">
       <button class="btn btn-primary btn-sm" onclick="openNewProjModal()">＋ 物件を追加</button>
+      <button class="btn btn-outline btn-sm" onclick="document.getElementById('excel-import-input').click()">📥 Excelインポート</button>
+      <input type="file" id="excel-import-input" accept=".xlsx,.xls" style="display:none" onchange="handleExcelImport(this)">
     </div>
   </div>
   <div class="card">
@@ -640,6 +642,38 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
     <button onclick="closeReceiptModal()" style="position:absolute;top:-14px;right:-14px;z-index:1;background:var(--surface);border:1px solid var(--border);border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center">✕</button>
     <img id="receipt-img" src="" alt="領収書" style="max-width:88vw;max-height:80vh;border-radius:10px;border:1px solid var(--border);object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.6)">
     <div id="receipt-meta" style="color:var(--text2);font-size:13px;background:rgba(0,0,0,.5);padding:6px 16px;border-radius:20px;backdrop-filter:blur(4px)"></div>
+  </div>
+</div>
+
+<!-- Excelインポート確認 Modal -->
+<div class="modal-overlay" id="modal-excel-import" onclick="closeExcelImportModal(event)">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <div class="modal-title">📥 Excelインポート確認</div>
+      <button class="modal-close" onclick="closeExcelImportModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="excel-import-summary" style="margin-bottom:14px;padding:12px 14px;background:var(--surface2);border-radius:10px;font-size:13px;line-height:1.8"></div>
+      <div style="max-height:40vh;overflow-y:auto;border:1px solid var(--border);border-radius:10px;margin-bottom:14px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead>
+            <tr style="background:var(--surface2);position:sticky;top:0">
+              <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">状態</th>
+              <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">工事番号</th>
+              <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">顧客名</th>
+              <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">着工日</th>
+              <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">完工日</th>
+              <th style="padding:8px 10px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--text2)">請負金額(税抜)</th>
+            </tr>
+          </thead>
+          <tbody id="excel-import-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="closeExcelImportModal()">キャンセル</button>
+        <button class="btn btn-primary" onclick="executeExcelImport()">✅ インポート実行</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2240,6 +2274,162 @@ function flashField(el){ flashInput(el); }
 function closeProjModal(e){
   if(!e||e.target===document.getElementById('modal-proj'))
     document.getElementById('modal-proj').classList.remove('open');
+}
+
+// ── Excel インポート ──
+let _excelImportRows = []; // プレビューデータ保持
+
+async function loadSheetJS(){
+  if(window.XLSX) return;
+  await new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=res; s.onerror=rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function handleExcelImport(input){
+  const file=input.files[0];
+  input.value=''; // 同じファイルを再度選べるようリセット
+  if(!file) return;
+
+  showLoading('Excelを読み込み中...');
+  try{
+    await loadSheetJS();
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const raw=XLSX.utils.sheet_to_json(ws,{defval:''});
+
+    if(!raw.length){ toast('データが見つかりません','#ef4444'); hideLoading(); return; }
+
+    // 列名を柔軟にマッピング
+    function pickKey(row, candidates){
+      for(const c of candidates){ if(c in row) return c; }
+      return null;
+    }
+    const sample=raw[0];
+    const COL_JOBNO   = pickKey(sample,['工事番号','jobno','job_no','JobNo']);
+    const COL_CUST    = pickKey(sample,['顧客名','customer','得意先名','取引先']);
+    const COL_START   = pickKey(sample,['着工日','start_date','着工','startDate']);
+    const COL_END     = pickKey(sample,['完工日','end_date','完工','endDate','竣工日']);
+    const COL_CONTRACT= pickKey(sample,['税抜き契約','税抜契約金額','税抜金額','contract','請負金額(税抜)','契約金額']);
+    // 税込みのみの場合フォールバック
+    const COL_GROSS   = pickKey(sample,['契約金額','請負金額','gross']);
+
+    if(!COL_JOBNO){ toast('「工事番号」列が見つかりません','#ef4444'); hideLoading(); return; }
+
+    // 日付を yyyy-mm-dd 文字列に変換
+    function fmtDate(v){
+      if(!v) return '';
+      if(v instanceof Date){
+        const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+        return `${y}-${m}-${d}`;
+      }
+      // 文字列 "2013-05-15 00:00:00" 等
+      const s=String(v).trim().substring(0,10);
+      return s;
+    }
+
+    // 工事番号末尾の " を除去
+    function cleanJobno(v){
+      return String(v||'').replace(/["""]/g,'').trim();
+    }
+
+    const projMap=getProjMap();
+
+    _excelImportRows=raw.map(row=>{
+      const jobno=cleanJobno(row[COL_JOBNO]);
+      if(!jobno) return null;
+      const contractRaw=COL_CONTRACT?row[COL_CONTRACT]:null;
+      const grossRaw=COL_GROSS?row[COL_GROSS]:null;
+      // 税抜き列が空なら税込みで代用
+      const contractVal=parseFloat(contractRaw)||parseFloat(grossRaw)||0;
+      return {
+        jobno,
+        customer: String(row[COL_CUST]||'').trim(),
+        startDate: fmtDate(row[COL_START]),
+        endDate:   fmtDate(row[COL_END]),
+        contract:  Math.round(contractVal),
+        exists:    !!projMap[jobno]
+      };
+    }).filter(Boolean);
+
+    if(!_excelImportRows.length){ toast('有効なデータがありません','#ef4444'); hideLoading(); return; }
+
+    // プレビューを表示
+    const newCount  =_excelImportRows.filter(r=>!r.exists).length;
+    const overCount =_excelImportRows.filter(r=> r.exists).length;
+    document.getElementById('excel-import-summary').innerHTML=
+      `<strong>読み込み件数：${_excelImportRows.length}件</strong>　／　
+       <span style="color:var(--success)">新規追加：${newCount}件</span>　
+       <span style="color:var(--warning,#f59e0b)">上書き更新：${overCount}件</span>
+       ${overCount?'<br><span style="font-size:11px;color:var(--text3)">※ 既存の工事番号は顧客名・日付・請負金額のみ更新します（工種・物件名などは維持）</span>':''}`;
+
+    document.getElementById('excel-import-tbody').innerHTML=_excelImportRows.map(r=>`
+      <tr style="border-bottom:1px solid var(--border)${r.exists?';background:rgba(245,158,11,.06)':''}">
+        <td style="padding:7px 10px">
+          ${r.exists
+            ? '<span style="font-size:11px;background:rgba(245,158,11,.2);color:#d97706;border-radius:4px;padding:1px 6px">更新</span>'
+            : '<span style="font-size:11px;background:rgba(16,185,129,.15);color:var(--success);border-radius:4px;padding:1px 6px">新規</span>'}
+        </td>
+        <td style="padding:7px 10px;font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--accent)">${r.jobno}</td>
+        <td style="padding:7px 10px;color:var(--text2)">${r.customer||'―'}</td>
+        <td style="padding:7px 10px;color:var(--text3);font-size:11px">${r.startDate||'―'}</td>
+        <td style="padding:7px 10px;color:var(--text3);font-size:11px">${r.endDate||'―'}</td>
+        <td style="padding:7px 10px;text-align:right;font-family:'Space Mono',monospace;font-size:12px">${r.contract?'¥'+r.contract.toLocaleString():'―'}</td>
+      </tr>`).join('');
+
+    hideLoading();
+    document.getElementById('modal-excel-import').classList.add('open');
+
+  }catch(e){
+    console.error(e);
+    toast('Excelの読み込みに失敗しました：'+e.message,'#ef4444');
+    hideLoading();
+  }
+}
+
+function closeExcelImportModal(e){
+  if(e&&e.target!==document.getElementById('modal-excel-import')) return;
+  document.getElementById('modal-excel-import').classList.remove('open');
+  _excelImportRows=[];
+}
+
+async function executeExcelImport(){
+  if(!_excelImportRows.length) return;
+  showLoading(`インポート中... 0/${_excelImportRows.length}件`);
+  document.getElementById('modal-excel-import').classList.remove('open');
+
+  const projMap=getProjMap();
+  let done=0;
+  for(const r of _excelImportRows){
+    const existing=projMap[r.jobno]||{};
+    const obj={
+      key:         r.jobno,
+      jobno:       r.jobno,
+      name:        existing.name||'',
+      customer:    r.customer||existing.customer||'',
+      worktype:    existing.worktype||'',
+      worktypes:   existing.worktypes||[],
+      city:        existing.city||'',
+      startDate:   r.startDate||existing.startDate||'',
+      endDate:     r.endDate||existing.endDate||'',
+      contract:    r.contract||existing.contract||0,
+      billingPhases: existing.billingPhases||[],
+      updatedAt:   new Date().toISOString()
+    };
+    await projPut(obj);
+    done++;
+    showLoading(`インポート中... ${done}/${_excelImportRows.length}件`);
+  }
+
+  allProjects=await projGetAll();
+  hideLoading();
+  _excelImportRows=[];
+  renderCost();
+  toast(`✅ ${done}件をインポートしました`);
 }
 
 function toggleTableYear(grpId, headerTr){
