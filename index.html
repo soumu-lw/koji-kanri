@@ -2342,8 +2342,8 @@ async function handleExcelImport(input){
     const COL_CUST    = pickKey(sample,['顧客名','customer','得意先名','取引先']);
     const COL_START   = pickKey(sample,['着工日','start_date','着工','startDate']);
     const COL_END     = pickKey(sample,['完工日','end_date','完工','endDate','竣工日']);
-    const COL_CONTRACT= pickKey(sample,['税抜き契約','税抜契約金額','税抜金額','contract','請負金額(税抜)','契約金額']);
-    // 税込みのみの場合フォールバック
+    const COL_CONTRACT= pickKey(sample,['税抜き契約','税抜契約金額','税抜金額','contract','請負金額(税抜)']);
+    // 税抜き列がない場合のフォールバック（税込み）
     const COL_GROSS   = pickKey(sample,['契約金額','請負金額','gross']);
 
     if(!COL_JOBNO){ toast('「工事番号」列が見つかりません','#ef4444'); hideLoading(); return; }
@@ -2352,7 +2352,8 @@ async function handleExcelImport(input){
     function fmtDate(v){
       if(!v) return '';
       if(v instanceof Date){
-        const y=v.getFullYear(),m=String(v.getMonth()+1).padStart(2,'0'),d=String(v.getDate()).padStart(2,'0');
+        // SheetJSのDateはUTC基準のため、getUTC系メソッドで取得する
+        const y=v.getUTCFullYear(),m=String(v.getUTCMonth()+1).padStart(2,'0'),d=String(v.getUTCDate()).padStart(2,'0');
         return `${y}-${m}-${d}`;
       }
       // 文字列 "2013-05-15 00:00:00" 等
