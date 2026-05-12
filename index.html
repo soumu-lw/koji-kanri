@@ -842,7 +842,7 @@ async function projPut(o){
 }
 
 async function projGetAll(){
-  const rows = await sbFetch('projects?order=updated_at.desc&limit=500');
+  const rows = await sbFetch('projects?order=updated_at.desc&limit=2000');
   return (rows||[]).map(rowToProj);
 }
 
@@ -2428,12 +2428,14 @@ function closeExcelImportModal(e){
 
 async function executeExcelImport(){
   if(!_excelImportRows.length) return;
-  showLoading(`インポート中... 0/${_excelImportRows.length}件`);
+  showLoading(`インポート準備中...`);
   document.getElementById('modal-excel-import').classList.remove('open');
 
   const projMap=getProjMap();
-  let done=0;
-  for(const r of _excelImportRows){
+  const now=new Date().toISOString();
+
+  // 全行をDBレコード形式に変換
+  const allRows=_excelImportRows.map(r=>{
     const existing=projMap[r.jobno]||{};
     const obj={
       key:         r.jobno,
@@ -2447,11 +2449,26 @@ async function executeExcelImport(){
       endDate:     r.endDate||existing.endDate||'',
       contract:    r.contract||existing.contract||0,
       billingPhases: existing.billingPhases||[],
-      updatedAt:   new Date().toISOString()
+      updatedAt:   now
     };
-    await projPut(obj);
-    done++;
-    showLoading(`インポート中... ${done}/${_excelImportRows.length}件`);
+    return projToRow(obj);
+  });
+
+  // 100件ずつ一括upsert
+  const CHUNK=100;
+  let done=0;
+  for(let i=0;i<allRows.length;i+=CHUNK){
+    const chunk=allRows.slice(i,i+CHUNK);
+    showLoading(`インポート中... ${Math.min(i+CHUNK,allRows.length)}/${allRows.length}件`);
+    await sbFetch('projects',{
+      method:'POST',
+      headers:{
+        'Prefer':'resolution=merge-duplicates,return=minimal',
+        'Content-Type':'application/json'
+      },
+      body:JSON.stringify(chunk)
+    });
+    done+=chunk.length;
   }
 
   allProjects=await projGetAll();
