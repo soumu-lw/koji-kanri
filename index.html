@@ -566,7 +566,6 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
       <table class="cost-table">
         <thead><tr>
           <th>工事番号</th>
-          <th>物件名</th>
           <th>顧客名</th>
           <th>工種</th>
           <th>市町村</th>
@@ -686,10 +685,8 @@ mark{background:rgba(79,142,247,.3);color:var(--accent);border-radius:3px;paddin
     </div>
     <div class="modal-body">
       <input type="hidden" id="pj-key">
+      <input type="hidden" id="pj-name">
       <div class="proj-grid" style="margin-bottom:14px">
-        <div class="field pg3"><label>工事名称</label>
-          <input type="text" id="pj-name" placeholder="工事番号を入力すると自動入力（手動入力・訂正も可）" style="opacity:1">
-        </div>
         <div class="field pg2"><label>工事番号</label>
           <input type="text" id="pj-jobno" placeholder="例：KJ-2024-001"
             list="pj-jobno-suggestions"
@@ -968,7 +965,7 @@ function updateAmountTotal(inputEl){
   const items = rows.map((row,i)=>{
     const amtEl = row.querySelector('.sr-amount');
     const amt = parseFloat(amtEl.value)||0;
-    const prop = row.querySelector('.sr-property').value.trim();
+    const prop = '';
     const cust = row.querySelector('.sr-customer').value.trim();
     const label = prop || cust || ('現場 '+(i+1));
     return {label, amt};
@@ -999,7 +996,7 @@ function updateAmountTotal(inputEl){
 function suggestJobno(input){
   const row = input.closest('.site-row');
   const customer = row.querySelector('.sr-customer').value.trim().toLowerCase();
-  const property = row.querySelector('.sr-property').value.trim().toLowerCase();
+  const property = '';
   // どちらかが2文字以上入力されたらサジェスト更新
   if(!customer && !property) return;
   // 過去レコードから一致する工事番号を収集
@@ -1040,7 +1037,6 @@ function addSiteRow(prefix){
     </div>
     <div class="site-grid">
       <div class="field s2"><label>顧客名</label><input class="sr-customer" type="text" placeholder="例：田中様" oninput="suggestJobno(this)"></div>
-      <div class="field s3"><label>物件名</label><input class="sr-property" type="text" placeholder="例：田中邸リフォーム" oninput="suggestJobno(this)"></div>
       <div class="field s3"><label>工事番号</label>
         <input class="sr-jobno" type="text" placeholder="例：KJ-2024-001" list="jobno-suggestions"
           oninput="suggestJobno(this)"
@@ -1113,7 +1109,7 @@ function getSiteRows(prefix){
   const listId=prefix==='m'?'m-sites-list':prefix==='ed'?'ed-sites-list':'sites-list';
   return [...document.querySelectorAll('#'+listId+' .site-row')].map(row=>({
     customer:row.querySelector('.sr-customer').value.trim(),
-    property:row.querySelector('.sr-property').value.trim(),
+    property:'',
     jobno:row.querySelector('.sr-jobno').value.trim(),
     material:row.querySelector('.sr-material').value,
     worktypes:getSiteWorktypes(row),
@@ -1259,7 +1255,6 @@ async function runAI(){
     (p.sites&&p.sites.length?p.sites:[{}]).forEach(s=>{
       addSiteRow('');const row=list.lastElementChild;
       if(s.customer)row.querySelector('.sr-customer').value=s.customer;
-      if(s.property)row.querySelector('.sr-property').value=s.property;
       if(s.jobno)row.querySelector('.sr-jobno').value=s.jobno;
       if(s.material)row.querySelector('.sr-material').value=s.material;
       if(s.product)row.querySelector('.sr-product').value=s.product;
@@ -1287,7 +1282,7 @@ async function pdfToB64(file){
 // ── Save ──
 async function saveRecord(){
   const sites=getSiteRows('');
-  if(!sites.some(s=>s.customer||s.property)){toast('顧客名または物件名を入力してください','#ef4444');return}
+  if(!sites.some(s=>s.customer)){toast('顧客名を入力してください','#ef4444');return}
   showLoading('登録中...');
   try{
   const imageDataList=currentFiles.map(f=>f.dataURL).filter(Boolean);
@@ -1301,7 +1296,7 @@ async function saveRecord(){
 }
 async function saveManual(){
   const sites=getSiteRows('m');
-  if(!sites.some(s=>s.customer||s.property)){toast('顧客名または物件名を入力してください','#ef4444');return}
+  if(!sites.some(s=>s.customer)){toast('顧客名を入力してください','#ef4444');return}
   showLoading('登録中...');
   try{
   await dbAdd({savedAt:new Date().toISOString(),type:document.getElementById('m-type').value,docdate:document.getElementById('m-docdate').value,issuer:document.getElementById('m-issuer').value.trim(),note:document.getElementById('m-note').value.trim(),fileName:'',imageData:null,sites});
@@ -1438,7 +1433,6 @@ async function openEditModal(id){
     addSiteRow('ed');
     const row=list.lastElementChild;
     row.querySelector('.sr-customer').value=s.customer||'';
-    row.querySelector('.sr-property').value=s.property||'';
     row.querySelector('.sr-jobno').value=s.jobno||'';
     row.querySelector('.sr-material').value=s.material||'';
     row.querySelector('.sr-product').value=s.product||'';
@@ -1454,7 +1448,7 @@ async function saveEdit(){
   const id=parseInt(document.getElementById('ed-id').value);
   const recs=await dbGetAll();const r=recs.find(x=>x.id===id);if(!r)return;
   const sites=getSiteRows('ed');
-  if(!sites.some(s=>s.customer||s.property)){toast('顧客名または物件名を入力してください','#ef4444');return}
+  if(!sites.some(s=>s.customer)){toast('顧客名を入力してください','#ef4444');return}
   const updated={
     ...r,
     type:document.getElementById('ed-type').value,
@@ -1576,7 +1570,7 @@ function renderCost(){
   const grand=rows.reduce((s,g)=>s+g.total,0);
 
   if(!rows.length){
-    document.getElementById('cost-tbody').innerHTML=`<tr><td colspan="12" style="text-align:center;padding:40px;color:var(--text3)">データがありません</td></tr>`;
+    document.getElementById('cost-tbody').innerHTML=`<tr><td colspan="11" style="text-align:center;padding:40px;color:var(--text3)">データがありません</td></tr>`;
     document.getElementById('cost-tfoot').innerHTML='';
     document.getElementById('cost-card-view').innerHTML=`<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">データがありません</div></div>`;
     return;
@@ -1600,7 +1594,7 @@ function renderCost(){
     const isFirst=yi===0;
     const grpId='yr-'+pk.replace(/\W/g,'_');
     const headerRow=`<tr class="year-header-row" style="background:rgba(79,142,247,.08);cursor:pointer" onclick="toggleTableYear('${grpId}',this)">
-      <td colspan="12" style="padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;user-select:none">
+      <td colspan="11" style="padding:8px 14px;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.5px;user-select:none">
         <span class="yr-arrow" style="margin-right:6px;display:inline-block;transition:transform .2s;transform:${isFirst?'':'rotate(-90deg)'}">▼</span>📅 ${label}
         <span style="font-weight:400;color:var(--text3);margin-left:10px">${grpRows.length}件</span>
         <span style="font-weight:400;color:var(--text3);margin-left:10px">請負合計 <span style="color:var(--info)">¥${contractTotal.toLocaleString()}</span></span>
@@ -1616,7 +1610,6 @@ function renderCost(){
         :pctNum>=0?`<span class="pct-badge pct-pos">${pctNum}%</span>`
         :`<span class="pct-badge pct-neg">${pctNum}%</span>`;
       const cust=[...g.customers].slice(0,2).join('・')||'―';
-      const prop=p.name||[...g.properties].slice(0,2).join('・')||(p.key&&p.key!==g.key?p.key:'')||'―';
       const workLbl=(p.worktypes&&p.worktypes.length)?p.worktypes.join('・'):(p.worktype?WORK_LABEL[p.worktype]||p.worktype:'―');
       const city=p.city||'―';
       const period=(p.startDate||p.endDate)?`${p.startDate||'?'} 〜 ${p.endDate||'?'}`:'―';
@@ -1624,7 +1617,6 @@ function renderCost(){
       const budget=contract-g.total;
       return `<tr class="yr-row ${grpId}" style="cursor:pointer;${isFirst?'':'display:none;'}${g.standalone?'opacity:.8;background:rgba(79,142,247,.03)':''}" onclick="openProjModal('${encodeURIComponent(g.key)}',${g.total})" title="クリックして工事情報を編集">
         <td style="font-weight:700;min-width:120px;font-family:'Space Mono',monospace;font-size:12px;padding-left:20px">${g.key}${g.standalone?'<br><span style="font-size:10px;color:var(--text3);font-weight:400">📋 書類未登録</span>':''}</td>
-        <td style="color:var(--text2);font-size:11px;min-width:120px">${prop}</td>
         <td style="color:var(--text2);font-size:11px;min-width:80px">${cust}</td>
         <td style="color:var(--text2);font-size:11px;white-space:nowrap">${workLbl}</td>
         <td style="color:var(--text2);font-size:11px;white-space:nowrap">${city}</td>
@@ -2212,12 +2204,9 @@ function autofillSiteFromJobno(input){
   if(!jobno) return;
   const row = input.closest('.site-row');
   const customerEl = row.querySelector('.sr-customer');
-  const propertyEl = row.querySelector('.sr-property');
   // 1. projectsから完全一致で検索（原価集計で登録した工事情報を優先）
   const proj = allProjects.find(p=>p.jobno===jobno);
   if(proj){
-    const propName = proj.name || proj.key || '';
-    if(propName){ propertyEl.value = propName; flashField(propertyEl); }
     if(proj.customer){ customerEl.value = proj.customer; flashField(customerEl); }
     if(proj.worktypes && proj.worktypes.length) loadSiteWorktypes(row, proj.worktypes);
     return;
@@ -2226,7 +2215,6 @@ function autofillSiteFromJobno(input){
   for(const rec of allRecords){
     const site = (rec.sites||[]).find(s=>s.jobno===jobno);
     if(site){
-      if(site.property){ propertyEl.value = site.property; flashField(propertyEl); }
       if(site.customer){ customerEl.value = site.customer; flashField(customerEl); }
       if(site.worktypes && site.worktypes.length) loadSiteWorktypes(row, site.worktypes);
       return;
